@@ -1251,6 +1251,7 @@ export function getRandomAnalysisData(analysisdata): analysisData {
     incidents: analysisdata.incidents,
     openSourceLibraries: analysisdata.openSourceLibraries,
     ruleFileToQuantity: analysisdata.ruleFileToQuantity,
+    profileName: analysisdata.profileName,
   };
 }
 
