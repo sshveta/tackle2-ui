@@ -17,50 +17,23 @@ limitations under the License.
 
 import * as data from "../../../../../utils/data_utils";
 import {
-  checkSuccessAlert,
-  deleteAllCredentials,
   deleteBulkApplicationsByApi,
+  exists,
   getRandomAnalysisData,
   getRandomApplicationData,
   login,
 } from "../../../../../utils/utils";
-import { CredentialsMaven } from "../../../../models/administration/credentials/credentialsMaven";
-import { CredentialsSourceControlUsername } from "../../../../models/administration/credentials/credentialsSourceControlUsername";
 import { AnalysisProfile } from "../../../../models/migration/analysis-profiles/analysis-profile";
 import { Analysis } from "../../../../models/migration/applicationinventory/analysis";
-import {
-  AnalysisStatuses,
-  CredentialType,
-  MIN,
-  UserCredentials,
-} from "../../../../types/constants";
-import * as commonView from "../../../../views/common.view";
+import { Issues } from "../../../../models/migration/dynamic-report/issues/issues";
+import { AnalysisStatuses, MIN } from "../../../../types/constants";
 
-let sourceCredential: CredentialsSourceControlUsername;
-let mavenCredential: CredentialsMaven;
 const applicationIds: number[] = [];
 
 describe(["@tier1"], "Analysis using profiles", () => {
   before("Login and setup credentials", function () {
     login();
     cy.visit("/");
-    deleteAllCredentials();
-
-    // Create source Credentials
-    sourceCredential = new CredentialsSourceControlUsername(
-      data.getRandomCredentialsData(
-        CredentialType.sourceControl,
-        UserCredentials.usernamePassword,
-        true
-      )
-    );
-    sourceCredential.create();
-
-    // Create Maven credentials
-    mavenCredential = new CredentialsMaven(
-      data.getRandomCredentialsData(CredentialType.maven, null, true)
-    );
-    mavenCredential.create();
   });
 
   beforeEach("Load data", function () {
@@ -78,14 +51,13 @@ describe(["@tier1"], "Analysis using profiles", () => {
     cy.visit("/");
   });
 
-  it("Create analysis profile and run analysis using that profile", function () {
+  it.only("Analysis using profile", function () {
     const profileName = `profile-${data.getRandomNumber()}`;
     const profileDescription = data.getDescription();
     const profileData = getRandomAnalysisData(
-      this.analysisData["source+dep_analysis_on_tackletestapp"]
+      this.analysisData["bookServerApp_analysis_profile"]
     );
 
-    // Step 1: Create an analysis profile
     const analysisProfile = new AnalysisProfile(
       profileName,
       profileData,
@@ -93,13 +65,10 @@ describe(["@tier1"], "Analysis using profiles", () => {
     );
 
     analysisProfile.create();
-
-    // Step 2: Create an application with the profile
     profileData.profileName = profileName;
-
     const application = new Analysis(
-      getRandomApplicationData("tackleTestApp_Profile_Analysis", {
-        sourceData: this.appData["tackle-testapp-git"],
+      getRandomApplicationData("bookServer_Profile_Analysis", {
+        sourceData: this.appData["bookserver-app"],
       }),
       profileData
     );
@@ -109,26 +78,16 @@ describe(["@tier1"], "Analysis using profiles", () => {
     application.extractIDfromName().then((id) => {
       applicationIds.push(id);
     });
-
-    // Step 3: Run analysis using the profile
     application.analyze();
     application.waitStatusChange(AnalysisStatuses.scheduled);
 
-    // Step 4: Verify analysis completes successfully
     application.verifyAnalysisStatus(AnalysisStatuses.completed, 30 * MIN);
-
-    // Step 5: Verify effort matches expected value
-    application.verifyEffort(
-      this.analysisData["source+dep_analysis_on_tackletestapp"]["effort"]
-    );
-
-    // Clean up: Delete the profile
+    Issues.openSingleApplication(application.name);
+    exists("CUSTOM RULE FOR DEPENDENCIES");
     analysisProfile.delete();
   });
 
   after("Perform test data clean up", function () {
     deleteBulkApplicationsByApi(applicationIds);
-    sourceCredential.delete();
-    mavenCredential.delete();
   });
 });
